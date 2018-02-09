@@ -67,10 +67,11 @@ sudo docker run --name matchbox \
   $DATA_MOUNT \
   quay.io/coreos/matchbox:f26224c57dbea02adff0200037b14310ccdd2ebc -address=0.0.0.0:8080 -log-level=debug $MATCHBOX_ARGS
 
-sudo docker run -d --rm --cap-add=NET_ADMIN --net=host \
+sudo docker run -d --cap-add=NET_ADMIN --net=host \
   --name=dnsmasq \
   quay.io/coreos/dnsmasq -d -q \
   --dhcp-range=192.168.0.2,192.168.0.253 \
+  --dhcp-option=3 \
   --enable-tftp --tftp-root=/var/lib/tftpboot \
   --dhcp-match=set:bios,option:client-arch,0 \
   --dhcp-boot=tag:bios,undionly.kpxe \
@@ -94,7 +95,7 @@ COREOS_VERSION="1576.4.0"
 sudo -u vagrant cat <<EOF | tee ./examples/terraform/simple-install/terraform.tfvars
 matchbox_http_endpoint = "http://${MATCHBOX_HOST}:8080"
 matchbox_rpc_endpoint = "${MATCHBOX_HOST}:8081"
-ssh_authorized_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDMI0J+qxt8GPxiJGphLb7yaLsrjq2b28LVpOoYLwlsFotMx2Sw8dlLhMg2otJ4m/G/TBnZiXxsJ+F9aRl8dJg3hk1OoGR8MwlbmvVgzNmHWhhw4iwbpnoYVFS9cgPJ5rr4jl2+UuALM3Z88Vt0zt5F+YJkH8E89qkGJGq8hh8bjOE5SCjBAOrpW2NOsRD2gQM2VoGa2YrsxTIbq14u3clzm1C044lGdH/I6YEunwi8fEaLcyZu+OU+08L7MFtBE+YeGLnEj+E0+Q0sMEBnvvMI7NNpUYVZfLXA/5+2gB9YaO8DvDwkslBgYx887uILMVlMZWelCoGJAnpUFL13Kgg/ leigh@null.net"
+ssh_authorized_key = "ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAzqrrFRdAoKRQYuUpv0jaosnv6FPqVMNy6psodAbFJvtft8x2d5V/Y22PZbJaTyBtblEmzUqQVUOKE5fg39DLuEGJkaf8g2s1U4cX5IuHXG2AlZhKpy1WYVN+P383ntLv4ndUmrSxJdGghAeKK6getbV8Js83JSdb6vBZ6nISTAybcmCVVmC2Bt+90eBEzD5j7KUnth9T80usI2a1RVytQNxkZXTqRBLSMzLI6gPT3AroBcOaTtNh8LzkDfaCfMMOZa7nCmWLKgdsEI2CTaPSOR5IYrQrrC2Cl4AFNL0h5FpmkEzcLFcQYcKtKhcRYo53jTf0d6pnpHM3vKbJRGRf2w== peter@black"
 EOF
 
 EDIT_FILE="examples/terraform/simple-install/profiles.tf"
