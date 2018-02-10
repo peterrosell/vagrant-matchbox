@@ -1,5 +1,8 @@
 
 $enable_serial_logging = false
+$use_bridged_network = false
+$bridge_adapter_name = 'wlp2s0'
+$use_virito = false
 
 Vagrant.configure("2") do |config|
   config.vm.define :matchbox_client do |matchbox_client|
@@ -36,16 +39,44 @@ Vagrant.configure("2") do |config|
       vb.cpus = '1'
       vb.gui = 'true'
 
+      if $use_virito
+        vb.customize [
+          'modifyvm', :id,
+          '--nic1', 'intnet',
+          '--intnet1', 'pxe_network',
+          '--nictype1', 'virtio'
+        ]
+      else
+        vb.customize [
+          'modifyvm', :id,
+          '--nic1', 'intnet',
+          '--intnet1', 'pxe_network'
+        ]
+      end
+
+      if $use_bridged_network
+        vb.customize [
+          'modifyvm', :id,
+          '--nic2', 'bridged',
+          '--bridgeadapter2', $bridge_adapter_name
+        ]
+      else
+        vb.customize [
+          'modifyvm', :id,
+          '--nic2', 'nat',
+          '--natpf2', 'guestssh,tcp,,2022,,22'
+        ]
+      end
+
+
       vb.customize [
         'modifyvm', :id,
-        '--nic1', 'intnet',
-        '--intnet1', 'pxe_network',
-        '--nic2', 'nat',
         '--boot1', 'disk',
         '--boot2', 'net',
         '--boot3', 'none',
         '--boot4', 'none'
       ]
+
 
       # Disable question about installation disk on first boot
       vb.customize [ 'setextradata', :id, 'GUI/FirstRun', 'no' ]
