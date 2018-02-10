@@ -2,6 +2,8 @@
 # vi: set ft=ruby :
 
 Vagrant.configure("2") do |config|
+  config.ssh.forward_agent = true
+
   config.vm.define :matchbox_server do |matchbox_server|
 
     matchbox_server.vm.box = "debian/jessie64"
