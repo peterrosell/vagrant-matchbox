@@ -2,85 +2,120 @@
 $enable_serial_logging = false
 $use_bridged_network = false
 $bridge_adapter_name = 'wlp2s0'
-$use_virito = false
+$use_virito = true
+$node_count = 2
+$use_gui = true
+
+def sshPortForward(num)
+  return "#{num+2021}"
+end
+
 
 Vagrant.configure("2") do |config|
-  config.vm.define :matchbox_client do |matchbox_client|
 
-    matchbox_client.vm.box = 'c33s/empty'
+  config.ssh.username = "core"
+  config.ssh.private_key_path = "~/.ssh/id_rsa"
 
-    if $enable_serial_logging
-      logdir = File.join(File.dirname(__FILE__), "log")
-      FileUtils.mkdir_p(logdir)
 
-      serialFile = File.join(logdir, "serial.txt")
-      FileUtils.touch(serialFile)
+  (1..$node_count).each do |i|
 
-      config.vm.provider :virtualbox do |vb, override|
-        vb.customize ["modifyvm", :id, "--uart1", "0x3F8", "4"]
-        vb.customize ["modifyvm", :id, "--uartmode1", serialFile]
-      end
-    end
+    config.vm.define vm_name = "node%d" % i do |matchbox_client|
 
-    matchbox_client.vm.provider :libvirt do |libvirt|
-      libvirt.cpu_mode = 'host-passthrough'
-      libvirt.memory = '2024'
-      libvirt.cpus = '1'
-      libvirt.storage :file, :size => '10G', :type => 'qcow2'
-      libvirt.boot 'network'
-      libvirt.mgmt_attach = 'false'
-      libvirt.management_network_name = "pxe_network"
-      libvirt.management_network_address = "192.168.0.0/24"
-      libvirt.management_network_mode = "nat"
-    end
+      matchbox_client.vm.box = 'c33s/empty'
+#      matchbox_client.vm.hostname = vm_name
 
-    matchbox_client.vm.provider :virtualbox do |vb|
-      vb.memory = '2048'
-      vb.cpus = '1'
-      vb.gui = 'true'
+      if $enable_serial_logging
+        logdir = File.join(File.dirname(__FILE__), "log")
+        FileUtils.mkdir_p(logdir)
 
-      if $use_virito
-        vb.customize [
-          'modifyvm', :id,
-          '--nic1', 'intnet',
-          '--intnet1', 'pxe_network',
-          '--nictype1', 'virtio'
-        ]
-      else
-        vb.customize [
-          'modifyvm', :id,
-          '--nic1', 'intnet',
-          '--intnet1', 'pxe_network'
-        ]
+        serialFile = File.join(logdir, "%s-serial.txt", vm_name)
+        FileUtils.touch(serialFile)
+
+        config.vm.provider :virtualbox do |vb, override|
+          vb.customize ["modifyvm", :id, "--uart1", "0x3F8", "4"]
+          vb.customize ["modifyvm", :id, "--uartmode1", serialFile]
+        end
       end
 
-      if $use_bridged_network
-        vb.customize [
-          'modifyvm', :id,
-          '--nic2', 'bridged',
-          '--bridgeadapter2', $bridge_adapter_name
-        ]
-      else
-        vb.customize [
-          'modifyvm', :id,
-          '--nic2', 'nat',
-          '--natpf2', 'guestssh,tcp,,2022,,22'
-        ]
+      matchbox_client.vm.provider :libvirt do |libvirt|
+        libvirt.cpu_mode = 'host-passthrough'
+        libvirt.memory = '2024'
+        libvirt.cpus = '1'
+        libvirt.storage :file, :size => '10G', :type => 'qcow2'
+        libvirt.boot 'network'
+        libvirt.mgmt_attach = 'false'
+        libvirt.management_network_name = "pxe_network"
+        libvirt.management_network_address = "192.168.0.0/24"
+        libvirt.management_network_mode = "nat"
       end
 
+      matchbox_client.vm.provider :virtualbox do |vb|
+        vb.memory = '2048'
+        vb.cpus = '1'
+        vb.gui = $use_gui
+        vb.check_guest_additions = false
+        vb.functional_vboxsf     = false
 
-      vb.customize [
-        'modifyvm', :id,
-        '--boot1', 'disk',
-        '--boot2', 'net',
-        '--boot3', 'none',
-        '--boot4', 'none'
-      ]
+        # plugin conflict
+        if Vagrant.has_plugin?("vagrant-vbguest") then
+          config.vbguest.auto_update = false
+        end
+
+#        vb.customize [
+#          'modifyvm', :id,
+#          '--nic3', 'hostonly',
+#          '--hostonlyadapter3', 'vboxnet1'
+#        ]
+
+        if $use_virito
+          vb.customize [
+            'modifyvm', :id,
+            '--nic1', 'intnet',
+            '--intnet1', 'pxe_network',
+            '--nictype1', 'virtio'
+          ]
+        else
+          vb.customize [
+            'modifyvm', :id,
+            '--nic1', 'intnet',
+            '--intnet1', 'pxe_network'
+          ]
+        end
+
+        if $use_bridged_network
+          vb.customize [
+            'modifyvm', :id,
+            '--nic2', 'bridged',
+            '--bridgeadapter2', $bridge_adapter_name
+          ]
+        else
+          sshPortForward = sshPortForward(i)
+          vb.customize [
+            'modifyvm', :id,
+            '--nic2', 'nat',
+            '--natpf2', "guestssh,tcp,,#{sshPortForward},,22"
+          ]
+        end
+
+        if $node_count > 1
+          mac = "525400" + Array.new(6){[*"A".."F", *"0".."9"].sample}.join
+          config.vm.provider :virtualbox do |vb|
+              vb.customize ["modifyvm", :id, "--macaddress1", mac]
+          end
+        end
+
+        vb.customize [
+          'modifyvm', :id,
+          '--boot1', 'disk',
+          '--boot2', 'net',
+          '--boot3', 'none',
+          '--boot4', 'none'
+        ]
 
 
-      # Disable question about installation disk on first boot
-      vb.customize [ 'setextradata', :id, 'GUI/FirstRun', 'no' ]
-
+        # Disable question about installation disk on first boot
+        vb.customize [ 'setextradata', :id, 'GUI/FirstRun', 'no' ]
+      end
     end
   end
 end
